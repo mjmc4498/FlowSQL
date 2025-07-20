@@ -6,7 +6,7 @@ FlowSQL es una herramienta de análisis de trazabilidad SQL que te permite visua
 
 La aplicación está desplegada en GitHub Pages y puedes acceder a ella a través del siguiente enlace:
 
-[https://mjmc4498.github.io/FlowSQL/](https://mjmc4498.github.io/FlowSQL/app/views/index.html)
+[https://mjmc4498.github.io/FlowSQL/](https://mjmc4498.github.io/FlowSQL/)
 
 ## Instalación
 
