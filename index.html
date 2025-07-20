@@ -2,37 +2,77 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Analizador de Trazabilidad SQL</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FlowSQL - Analizador de Trazabilidad SQL</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    textarea { width: 100%; height: 150px; margin-top: 10px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-    #graphDiv { margin-top: 30px; }
-  </style>
 </head>
 <body>
-  <h2>Analizador de Trazabilidad SQL</h2>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">FlowSQL</a>
+    </div>
+  </nav>
 
-  <input type="file" id="sqlFile" accept=".sql"><br>
-  <textarea id="sqlInput" placeholder="Pega tu script SQL aquí..."></textarea><br>
-  <button id="analizarBtn">Analizar</button>
+  <div class="container mt-4">
+    <div class="row">
+      <div class="col-lg-6">
+        <div class="card">
+          <div class="card-header">
+            <h4>Entrada de SQL</h4>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label for="sqlFile" class="form-label">Cargar archivo .sql</label>
+              <input type="file" id="sqlFile" class="form-control" accept=".sql">
+            </div>
+            <div class="mb-3">
+              <label for="sqlInput" class="form-label">O pega tu script SQL aquí</label>
+              <textarea id="sqlInput" class="form-control" rows="10" placeholder="Pega tu script SQL aquí..."></textarea>
+            </div>
+            <button id="analizarBtn" class="btn btn-primary">
+              <span id="analizarBtnSpinner" class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="display: none;"></span>
+              Analizar
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card">
+          <div class="card-header">
+            <h4>Diagrama de Flujo</h4>
+          </div>
+          <div class="card-body text-center">
+            <div id="graphDiv" class="mermaid"></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-  <table id="resultado" style="display:none;">
-    <thead>
-      <tr>
-        <th>Tabla Fuente</th>
-        <th>Campo Fuente</th>
-        <th>Tabla Destino</th>
-        <th>Campo Destino</th>
-        <th>Lógica</th>
-      </tr>
-    </thead>
-    <tbody id="resultadoBody"></tbody>
-  </table>
-
-  <div id="graphDiv" class="mermaid"></div>
+    <div class="row mt-4">
+      <div class="col">
+        <div class="card">
+          <div class="card-header">
+            <h4>Tabla de Trazabilidad</h4>
+          </div>
+          <div class="card-body">
+            <table id="resultado" class="table table-striped table-hover" style="display:none;">
+              <thead>
+                <tr>
+                  <th>Tabla Fuente</th>
+                  <th>Campo Fuente</th>
+                  <th>Tabla Destino</th>
+                  <th>Campo Destino</th>
+                  <th>Lógica</th>
+                </tr>
+              </thead>
+              <tbody id="resultadoBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="app/models/model.js"></script>
   <script src="app/controllers/controller.js"></script>
