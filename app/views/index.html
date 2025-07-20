@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Analizador de Trazabilidad SQL</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    textarea { width: 100%; height: 150px; margin-top: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    #graphDiv { margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <h2>Analizador de Trazabilidad SQL</h2>
+
+  <input type="file" id="sqlFile" accept=".sql"><br>
+  <textarea id="sqlInput" placeholder="Pega tu script SQL aquí..."></textarea><br>
+  <button id="analizarBtn">Analizar</button>
+
+  <table id="resultado" style="display:none;">
+    <thead>
+      <tr>
+        <th>Tabla Fuente</th>
+        <th>Campo Fuente</th>
+        <th>Tabla Destino</th>
+        <th>Campo Destino</th>
+        <th>Lógica</th>
+      </tr>
+    </thead>
+    <tbody id="resultadoBody"></tbody>
+  </table>
+
+  <div id="graphDiv" class="mermaid"></div>
+
+  <script src="../models/model.js"></script>
+  <script src="../controllers/controller.js"></script>
+</body>
+</html>
