@@ -138,7 +138,7 @@ function analizarSQL(sql) {
     }
   });
 
-  if (allResultados.length > 0) {
+  if (allResultados.length > 0 || allRelaciones.size > 0) {
     return {
       resultados: allResultados,
       relaciones: 'graph TD\n' + [...allRelaciones].join('\n'),

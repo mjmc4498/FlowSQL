@@ -40,7 +40,11 @@ document.addEventListener('DOMContentLoaded', function() {
           `;
         });
 
-        resultadoTable.style.display = 'table';
+        if (analisis.resultados.length > 0) {
+          resultadoTable.style.display = 'table';
+        } else {
+          resultadoTable.style.display = 'none';
+        }
         graphDiv.innerHTML = analisis.relaciones;
         mermaid.init(undefined, graphDiv);
       } else {
