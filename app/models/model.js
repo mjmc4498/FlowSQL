@@ -1,39 +1,104 @@
 function analizarSQL(sql) {
-  const insertRegex = /insert\s+into\s+(\w+)\s*\(([^)]+)\)/i;
-  const selectRegex = /select\s+([\s\S]+?)\s+from\s+(\w+)/i;
+  // Eliminar comentarios y sentencias no relevantes
+  const cleanedSql = sql
+    .replace(/--.*$/gm, '') // Eliminar comentarios de una sola línea
+    .replace(/\/\*[\s\S]*?\*\//g, '') // Eliminar comentarios de varias líneas
+    .replace(/SET [^;]+;/g, '') // Eliminar sentencias SET
+    .replace(/WHENEVER [^;]+;/g, '') // Eliminar sentencias WHENEVER
+    .replace(/COMMIT;/g, '') // Eliminar sentencias COMMIT
+    .replace(/ANALYZE TABLE [^;]+;/g, '') // Eliminar sentencias ANALYZE
+    .replace(/TRUNCATE TABLE [^;]+;/g, '') // Eliminar sentencias TRUNCATE
+    .replace(/DROP TABLE [^;]+;/g, '') // Eliminar sentencias DROP
+    .replace(/CREATE TABLE [^;]+;/g, '') // Eliminar sentencias CREATE
+    .replace(/DELETE FROM [^;]+;/g, '') // Eliminar sentencias DELETE
+    .trim();
 
-  const insertMatch = sql.match(insertRegex);
-  const selectMatch = sql.match(selectRegex);
+  const statements = cleanedSql.split(';').filter(s => s.trim() !== '');
 
-  let relaciones = 'graph TD\n';
-  let resultados = [];
+  let allResultados = [];
+  let allRelaciones = new Set();
 
-  if (insertMatch && selectMatch) {
-    const tablaDestino = insertMatch[1];
-    const camposDestino = insertMatch[2].split(',').map(s => s.trim());
-    const camposFuente = selectMatch[1].split(',').map(s => s.trim());
-    const tablaFuente = selectMatch[2];
+  statements.forEach(statement => {
+    const insertRegex = /insert\s+(?:\/\*.*?\*\/)?\s*into\s+([\w\.]+)\s*\(([^)]+)\)[\s\S]*?select\s+([\s\S]+?)\s+from\s+([\s\S]+)/i;
+    const match = statement.match(insertRegex);
 
-    for (let i = 0; i < camposDestino.length; i++) {
-      let logica = '-';
-      const campo = camposFuente[i] || '';
+    if (match) {
+      const tablaDestino = match[1].trim();
+      const camposDestino = match[2].split(',').map(s => s.trim());
+      const camposFuenteStr = match[3];
+      const fromClause = match[4];
 
-      if (/cast|coalesce|case|when/.test(campo)) {
-        logica = 'Función: ' + campo.match(/(cast|coalesce|case|when)[\s\S]*?/)[0];
+      const { tablasFuente, alias } = parseFromClause(fromClause);
+      const camposFuente = parseSelectClause(camposFuenteStr, alias);
+
+      for (let i = 0; i < camposDestino.length; i++) {
+        const campoDestino = camposDestino[i];
+        const campoFuente = camposFuente[i] || { expr: 'N/A', tabla: 'N/A' };
+
+        allResultados.push({
+          tablaFuente: campoFuente.tabla,
+          campoFuente: campoFuente.expr,
+          tablaDestino: tablaDestino,
+          campoDestino: campoDestino,
+          logica: campoFuente.expr.includes('case') ? 'CASE' : '-',
+        });
       }
 
-      resultados.push({
-        tablaFuente: tablaFuente,
-        campoFuente: campo,
-        tablaDestino: tablaDestino,
-        campoDestino: camposDestino[i],
-        logica: logica
+      tablasFuente.forEach(tabla => {
+        allRelaciones.add(`${tabla}-->${tablaDestino}`);
       });
-
-      relaciones += `${tablaFuente}-->${tablaDestino}\n`;
     }
-    return { resultados, relaciones };
+  });
+
+  if (allResultados.length > 0) {
+    return {
+      resultados: allResultados,
+      relaciones: 'graph TD\n' + [...allRelaciones].join('\n'),
+    };
   } else {
     return null;
   }
+}
+
+function parseFromClause(fromClause) {
+  const tablasFuente = [];
+  const alias = {};
+  const joinRegex = /([\w\.]+)\s+(\w+)/g;
+  let match;
+  while ((match = joinRegex.exec(fromClause)) !== null) {
+    const tabla = match[1].trim();
+    const al = match[2].trim();
+    tablasFuente.push(tabla);
+    alias[al] = tabla;
+  }
+
+  // Si no hay joins, solo hay una tabla
+  if (tablasFuente.length === 0) {
+    tablasFuente.push(fromClause.trim().split(' ')[0]);
+  }
+
+  return { tablasFuente, alias };
+}
+
+function parseSelectClause(selectClause, alias) {
+    const campos = selectClause.split(/,(?![^()]*\))/); // Split by comma, ignoring commas inside parentheses
+
+    return campos.map(campo => {
+        campo = campo.trim();
+        const asMatch = campo.match(/\s+as\s+([\w\d_]+)/i);
+        const expr = asMatch ? campo.substring(0, asMatch.index).trim() : campo;
+
+        const tableMatch = expr.match(/^(\w+)\./);
+        let tabla = 'N/A';
+        if (tableMatch) {
+            const aliasName = tableMatch[1];
+            tabla = alias[aliasName] || aliasName;
+        }
+
+        return {
+            expr: expr,
+            tabla: tabla,
+            alias: asMatch ? asMatch[1] : null
+        };
+    });
 }
