@@ -19,14 +19,15 @@ function analizarSQL(sql) {
   let allRelaciones = new Set();
 
   statements.forEach(statement => {
+    // Analizar sentencias INSERT
     const insertRegex = /insert\s+(?:\/\*.*?\*\/)?\s*into\s+([\w\.]+)\s*\(([^)]+)\)[\s\S]*?select\s+([\s\S]+?)\s+from\s+([\s\S]+)/i;
-    const match = statement.match(insertRegex);
+    const insertMatch = statement.match(insertRegex);
 
-    if (match) {
-      const tablaDestino = match[1].trim();
-      const camposDestino = match[2].split(',').map(s => s.trim());
-      const camposFuenteStr = match[3];
-      const fromClause = match[4];
+    if (insertMatch) {
+      const tablaDestino = insertMatch[1].trim();
+      const camposDestino = insertMatch[2].split(',').map(s => s.trim());
+      const camposFuenteStr = insertMatch[3];
+      const fromClause = insertMatch[4];
 
       const { tablasFuente, alias } = parseFromClause(fromClause);
       const camposFuente = parseSelectClause(camposFuenteStr, alias);
@@ -40,13 +41,80 @@ function analizarSQL(sql) {
           campoFuente: campoFuente.expr,
           tablaDestino: tablaDestino,
           campoDestino: campoDestino,
-          logica: campoFuente.expr.includes('case') ? 'CASE' : '-',
+          logica: 'INSERT',
         });
       }
 
       tablasFuente.forEach(tabla => {
-        allRelaciones.add(`${tabla}-->${tablaDestino}`);
+        allRelaciones.add(`${tabla}--"INSERT"-->${tablaDestino}`);
       });
+    }
+
+    // Analizar sentencias UPDATE
+    const updateRegex = /update\s+([\w\.]+)\s+set\s+([\s\S]+?)(?:\s+from\s+([\s\S]+?))?\s+where\s+([\s\S]+)/i;
+    const updateMatch = statement.match(updateRegex);
+
+    if (updateMatch) {
+      const tablaDestino = updateMatch[1].trim();
+      const setClause = updateMatch[2];
+      const fromClause = updateMatch[3] || '';
+
+      const { tablasFuente, alias } = parseFromClause(fromClause);
+
+      const setCampos = setClause.split(',').map(s => s.trim());
+      setCampos.forEach(campo => {
+        const [campoDestino, campoFuenteExpr] = campo.split('=').map(s => s.trim());
+        const campoFuente = parseSelectClause(campoFuenteExpr, alias)[0];
+
+        allResultados.push({
+            tablaFuente: campoFuente.tabla,
+            campoFuente: campoFuente.expr,
+            tablaDestino: tablaDestino,
+            campoDestino: campoDestino,
+            logica: 'UPDATE',
+        });
+      });
+
+      tablasFuente.forEach(tabla => {
+        allRelaciones.add(`${tabla}--"UPDATE"-->${tablaDestino}`);
+      });
+    }
+
+    // Analizar sentencias DELETE
+    const deleteRegex = /delete\s+from\s+([\w\.]+)(?:\s+using\s+([\s\S]+?))?\s+where\s+([\s\S]+)/i;
+    const deleteMatch = statement.match(deleteRegex);
+
+    if (deleteMatch) {
+        const tablaDestino = deleteMatch[1].trim();
+        const fromClause = deleteMatch[2] || '';
+
+        const { tablasFuente, alias } = parseFromClause(fromClause);
+
+        if (tablasFuente.length > 0) {
+            tablasFuente.forEach(tabla => {
+                allRelaciones.add(`${tabla}--"DELETE"-->${tablaDestino}`);
+            });
+        } else {
+            allRelaciones.add(`DELETE--FROM-->${tablaDestino}`);
+        }
+    }
+
+    // Analizar sentencias MERGE
+    const mergeRegex = /merge\s+into\s+([\w\.]+)\s+using\s+([\w\.]+)\s+on\s+([\s\S]+?)\s+(when\s+matched\s+then\s+update\s+set\s+[\s\S]+?)?\s*(when\s+not\s+matched\s+then\s+insert\s+[\s\S]+)?/i;
+    const mergeMatch = statement.match(mergeRegex);
+
+    if (mergeMatch) {
+        const tablaDestino = mergeMatch[1].trim();
+        const tablaFuente = mergeMatch[2].trim();
+        const updateClause = mergeMatch[4] || '';
+        const insertClause = mergeMatch[5] || '';
+
+        if (updateClause) {
+            allRelaciones.add(`${tablaFuente}--"UPDATE"-->${tablaDestino}`);
+        }
+        if (insertClause) {
+            allRelaciones.add(`${tablaFuente}--"INSERT"-->${tablaDestino}`);
+        }
     }
   });
 
