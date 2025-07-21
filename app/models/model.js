@@ -28,8 +28,9 @@ function analizarSQL(sql) {
       const camposDestino = insertMatch[2].split(',').map(s => s.trim());
       const camposFuenteStr = insertMatch[3];
       const fromClause = insertMatch[4];
+      const whereClause = fromClause.split(/where/i)[1] || '';
 
-      const { tablasFuente, alias } = parseFromClause(fromClause);
+      const { tablasFuente, alias } = parseFromClause(fromClause.split(/where/i)[0]);
       const camposFuente = parseSelectClause(camposFuenteStr, alias);
 
       for (let i = 0; i < camposDestino.length; i++) {
@@ -45,7 +46,10 @@ function analizarSQL(sql) {
         });
       }
 
-      tablasFuente.forEach(tabla => {
+      const whereTablas = parseWhereClause(whereClause, alias);
+      const todasLasTablas = [...new Set([...tablasFuente, ...whereTablas])];
+
+      todasLasTablas.forEach(tabla => {
         allRelaciones.add(`${tabla}--"INSERT"-->${tablaDestino}`);
       });
     }
@@ -145,23 +149,29 @@ function analizarSQL(sql) {
 }
 
 function parseFromClause(fromClause) {
-  const tablasFuente = [];
+  const tablasFuente = new Set();
   const alias = {};
-  const joinRegex = /([\w\.]+)\s+(\w+)/g;
+  // Expresión regular mejorada para capturar varios tipos de JOINs y tablas con alias
+  const fromRegex = /(?:from|join)\s+([\w\.]+)(?:\s+as)?\s+(\w+)?/gi;
   let match;
-  while ((match = joinRegex.exec(fromClause)) !== null) {
+
+  while ((match = fromRegex.exec(fromClause)) !== null) {
     const tabla = match[1].trim();
-    const al = match[2].trim();
-    tablasFuente.push(tabla);
+    const al = match[2] ? match[2].trim() : tabla;
+    tablasFuente.add(tabla);
     alias[al] = tabla;
   }
 
-  // Si no hay joins, solo hay una tabla
-  if (tablasFuente.length === 0) {
-    tablasFuente.push(fromClause.trim().split(' ')[0]);
+  // Si no se encontraron coincidencias con la expresión regular, puede ser una sola tabla sin alias
+  if (tablasFuente.size === 0 && fromClause.trim()) {
+      const parts = fromClause.trim().split(/\s+/);
+      const tableName = parts[0];
+      tablasFuente.add(tableName);
+      alias[tableName] = tableName; // Asume que el nombre de la tabla es su propio alias si no se especifica
   }
 
-  return { tablasFuente, alias };
+
+  return { tablasFuente: [...tablasFuente], alias };
 }
 
 function parseSelectClause(selectClause, alias) {
@@ -170,9 +180,20 @@ function parseSelectClause(selectClause, alias) {
     return campos.map(campo => {
         campo = campo.trim();
         const asMatch = campo.match(/\s+as\s+([\w\d_]+)/i);
-        const expr = asMatch ? campo.substring(0, asMatch.index).trim() : campo;
+        let expr = asMatch ? campo.substring(0, asMatch.index).trim() : campo;
 
-        const tableMatch = expr.match(/^(\w+)\./);
+        // Extraer la tabla de origen de funciones como COALESCE, CAST, etc.
+        const funcMatch = expr.match(/(?:coalesce|cast|case\s+when\s+[\s\S]+?then\s+([\w\.]+)|'[^']*'|[\w\.]+)/i);
+        let innerExpr = expr;
+        if (funcMatch) {
+            // Simplificamos: tomamos la primera coincidencia de tabla.columna dentro de la función
+            const innerContentMatch = expr.match(/([\w\d_]+)\.[\w\d_]+/);
+            if(innerContentMatch) {
+                innerExpr = innerContentMatch[0];
+            }
+        }
+
+        const tableMatch = innerExpr.match(/^(\w+)\./);
         let tabla = 'N/A';
         if (tableMatch) {
             const aliasName = tableMatch[1];
@@ -185,4 +206,17 @@ function parseSelectClause(selectClause, alias) {
             alias: asMatch ? asMatch[1] : null
         };
     });
+}
+
+function parseWhereClause(whereClause, alias) {
+    const tablasFuente = new Set();
+    const subqueryRegex = /from\s+([\w\.]+)(?:\s+as)?\s+(\w+)?/gi;
+    let match;
+
+    while ((match = subqueryRegex.exec(whereClause)) !== null) {
+        const tabla = match[1].trim();
+        tablasFuente.add(tabla);
+    }
+
+    return [...tablasFuente];
 }
