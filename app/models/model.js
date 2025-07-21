@@ -116,6 +116,22 @@ function analizarSQL(sql) {
             allRelaciones.add(`${tablaFuente}--"INSERT"-->${tablaDestino}`);
         }
     }
+
+    // Analizar sentencias CREATE TABLE
+    const createTableRegex = /create\s+(?:temporary\s+)?table\s+([\w\.]+)\s+\(([\s\S]+)\)/i;
+    const createTableMatch = statement.match(createTableRegex);
+
+    if (createTableMatch) {
+      const tableName = createTableMatch[1].trim();
+      const columnsDef = createTableMatch[2].trim();
+      const foreignKeyRegex = /foreign\s+key\s+\(([\w\d_]+)\)\s+references\s+([\w\d_]+)\(([\w\d_]+)\)/gi;
+      let fkMatch;
+      while ((fkMatch = foreignKeyRegex.exec(columnsDef)) !== null) {
+        const fromTable = tableName;
+        const toTable = fkMatch[2];
+        allRelaciones.add(`${fromTable}-->${toTable}`);
+      }
+    }
   });
 
   if (allResultados.length > 0) {
