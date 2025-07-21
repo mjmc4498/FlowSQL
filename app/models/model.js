@@ -51,7 +51,9 @@ function analizarSQL(sql) {
 
       todasLasTablas.forEach(tabla => {
         allRelaciones.add(`${tabla}--"INSERT"-->${tablaDestino}`);
+        allRelaciones.add(`class ${tabla} sourceTable`);
       });
+      allRelaciones.add(`class ${tablaDestino} destinationTable`);
     }
 
     // Analizar sentencias UPDATE
@@ -81,7 +83,9 @@ function analizarSQL(sql) {
 
       tablasFuente.forEach(tabla => {
         allRelaciones.add(`${tabla}--"UPDATE"-->${tablaDestino}`);
+        allRelaciones.add(`class ${tabla} sourceTable`);
       });
+      allRelaciones.add(`class ${tablaDestino} destinationTable`);
     }
 
     // Analizar sentencias DELETE
@@ -97,10 +101,10 @@ function analizarSQL(sql) {
         if (tablasFuente.length > 0) {
             tablasFuente.forEach(tabla => {
                 allRelaciones.add(`${tabla}--"DELETE"-->${tablaDestino}`);
+                allRelaciones.add(`class ${tabla} sourceTable`);
             });
-        } else {
-            allRelaciones.add(`DELETE--FROM-->${tablaDestino}`);
         }
+        allRelaciones.add(`class ${tablaDestino} destinationTable`);
     }
 
     // Analizar sentencias MERGE
@@ -119,29 +123,47 @@ function analizarSQL(sql) {
         if (insertClause) {
             allRelaciones.add(`${tablaFuente}--"INSERT"-->${tablaDestino}`);
         }
+        allRelaciones.add(`class ${tablaFuente} sourceTable`);
+        allRelaciones.add(`class ${tablaDestino} destinationTable`);
     }
 
     // Analizar sentencias CREATE TABLE
-    const createTableRegex = /create\s+(?:temporary\s+)?table\s+([\w\.]+)\s*\(([\s\S]+)\)/i;
+    const createTableRegex = /create\s+(temporary\s+)?table\s+([\w\.]+)\s*\(([\s\S]+)\)/i;
     const createTableMatch = statement.match(createTableRegex);
 
     if (createTableMatch) {
-      const tableName = createTableMatch[1].trim();
-      const columnsDef = createTableMatch[2].trim();
+      const isTemporary = createTableMatch[1];
+      const tableName = createTableMatch[2].trim();
+      const nodeShape = isTemporary ? `[/${tableName}/]` : `[${tableName}]`;
+
+      const columnsDef = createTableMatch[3].trim();
       const foreignKeyRegex = /foreign\s+key\s*\(([\w\d_]+)\)\s+references\s+([\w\d_]+)\s*\(([\w\d_]+)\)/gi;
       let fkMatch;
       while ((fkMatch = foreignKeyRegex.exec(columnsDef)) !== null) {
         const fromTable = tableName;
         const toTable = fkMatch[2];
-        allRelaciones.add(`${fromTable}-->${toTable}`);
+        allRelaciones.add(`${nodeShape}-->${toTable}`);
       }
     }
   });
 
   if (allResultados.length > 0 || allRelaciones.size > 0) {
+    let graph = '%%{init: {"theme": "base", "themeVariables": { "primaryColor": "#ffcccc"}}}%%\n';
+    graph += 'graph TD\n';
+    graph += '%%{title: "Diagrama de Flujo de Datos"}%%\n';
+    graph += 'classDef sourceTable fill:#f9f,stroke:#333,stroke-width:2px;\n';
+    graph += 'classDef destinationTable fill:#ccf,stroke:#333,stroke-width:2px;\n';
+
+    const relacionesArray = [...allRelaciones];
+    const tablas = new Set(relacionesArray.flatMap(rel => rel.split(/--.*-->/)));
+
+    relacionesArray.forEach(rel => {
+        graph += rel + '\n';
+    });
+
     return {
       resultados: allResultados,
-      relaciones: 'graph TD\n' + [...allRelaciones].join('\n'),
+      relaciones: graph,
     };
   } else {
     return null;
